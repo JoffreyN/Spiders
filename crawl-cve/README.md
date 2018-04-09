@@ -4,8 +4,9 @@
 ## 使用
 ~~~
 pa取cve信息.py E:\ZP\Desktop\cve.txt
-  #cve.txt样例见目录，运行结果见cve.xlsx
 ~~~
+> cve.txt样例见目录，运行结果见cve.xlsx
+
 
 ## 说明
 1、使用requests爬取数据，使用BeautifulSoup解析网页，提取数据，动态打印正在爬取的cve号<br>
