@@ -1,5 +1,6 @@
 import requests,openpyxl,sys,os,execjs,re,multiprocessing
 from bs4 import BeautifulSoup
+from selenium import webdriver
 
 class Py4Js():     
 	def __init__(self):  
@@ -61,13 +62,29 @@ def translate(content):
 	return result
 
 def GetURL(url,header={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:59.0) Gecko/20100101 Firefox/59.0'}):
+	global cnvd_cookie
 	try:
 		r=requests.get(url,headers=header)
 		r.encoding=r.apparent_encoding
+		if r.status_code!=200:
+			cnvd_cookie=GetCookie(url)
+			header['cookie']=cnvd_cookie
+			r=requests.get(url,headers=header)
+		print(header['cookie'])	
 		soup=BeautifulSoup(r.text,'html.parser')
 		return soup
 	except Exception as e:
 		print('GetURLError:%s;Reason:%s'%(url,e))
+
+def GetCookie(url='http://www.cnvd.org.cn/'):		
+		options = webdriver.FirefoxOptions()
+		options.set_headless()
+		options.add_argument('-headless')
+		browser=webdriver.Firefox(firefox_options=options)
+		browser.get(url)
+		cook=";".join([item["name"]+"="+item["value"] for item in browser.get_cookies()])
+		browser.quit()
+		return cook
 
 def Getdata1(cve):
 	#cve英文官网
@@ -150,18 +167,7 @@ def Getdata3(cve):
 	finally:return [lv_vul_name,lv_affect,lv_description,lv_solution]
 #Getdata3('CVE-2012-4558')
 
-def Getcnvd(cnvd):
-	def GetCookie(url='http://www.cnvd.org.cn/'):
-		from selenium import webdriver
-		options = webdriver.FirefoxOptions()
-		options.set_headless()
-		options.add_argument('-headless')
-		browser=webdriver.Firefox(firefox_options=options)
-		browser.get(url)
-		cook=";".join([item["name"]+"="+item["value"] for item in browser.get_cookies()])
-		browser.quit()
-		return cook
-
+def Getcnvd(cnvd):	
 	def getlevel(color):
 		if 'red' in color:
 			return 'H'
@@ -178,12 +184,14 @@ def Getcnvd(cnvd):
 			descrip='\n'.join(map(lambda s:s.strip(' \r\n\t'),lists)).strip('\n')
 		finally:
 			return descrip
-	header={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:59.0) Gecko/20100101 Firefox/59.0'}
-	header['cookie']=GetCookie()
+	
 	cnvd_cve,cnvd_name,cnvd_leve,cnvd_affect,cnvd_description,cnvd_solution='0','0','0','0','0','0'
 	url='http://www.cnvd.org.cn/flaw/show/%s'%cnvd
+	header={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:59.0) Gecko/20100101 Firefox/59.0'}
+	global cnvd_cookie
+	header['cookie']=cnvd_cookie
 	try:
-		soup_cnvd=GetURL(url,header=header)
+		soup_cnvd=GetURL(url,header)
 		cnvd_cve=soup_cnvd.find(text='CVE ID').parent.next_sibling.next_sibling.a.string.strip(' \n')
 		cnvd_name=soup_cnvd.find('div',{'class':'blkContainerSblk'}).h1.string.strip(' \n')
 		if not cnvd_name.endswith(')'):cnvd_name=cnvd_name+'(%s)'%cnvd_cve
@@ -229,6 +237,7 @@ def Getcnnvd(cnnvd):
 
 if __name__=='__main__':
 	if os.path.isfile(sys.argv[1]):
+		cnvd_cookie=GetCookie()
 		savepath=os.path.splitext(sys.argv[1])[0]+'.xlsx'
 		excel=openpyxl.Workbook()
 		cve_sheet,cve_sheet.title,cnvd_sheet,cnnvd_sheet=excel.active,'cve_CH_EN_LV',excel.create_sheet('cnvd'),excel.create_sheet('cnnvd')
@@ -265,5 +274,3 @@ if __name__=='__main__':
 			print('绿盟名称：'+lv[0]+'\n绿盟影响版本：'+lv[1]+'\n绿盟描述：'+lv[2]+'\n绿盟解决方案：'+lv[3])
 		except Exception as e:
 			print('InputError:%s'%e)
-#pa取cve信息.py CVE-2013-2067
-#pa取cve信息.py E:\ZP\Desktop\cve.txt
