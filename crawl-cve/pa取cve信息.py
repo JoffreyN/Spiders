@@ -226,59 +226,7 @@ def Getcnnvd(cnnvd):
 	except Exception as e:
 		print('cnnvd_ERROR:%s;Reason:%s'%(cnnvd,e))
 	finally:return [cnnvd_cve,cnnvd,cnnvd_name,cnnvd_leve,cnnvd_description,cnnvd_solution]
-'''
-def runcves(lock,i,cve_sheet,cnvd_sheet,cnnvd_sheet,excel,savepath):
-	code=i.strip('\n')
-	sys.stdout.write('正在处理：%s'%code+'      \r')
-	sys.stdout.flush()
-	with lock:
-		try:
-			if code.lower().startswith('cve'):
-				en_description=Getdata1(code)
-				cve_lists=sum([[code],Getdata2(code),[en_description,translate(en_description)],Getdata3(code)],[])
-				cve_sheet.append(cve_lists)
-				excel.save(savepath)
-			elif code.lower().startswith('cnvd'):
-				cnvd_list=Getcnvd(code)
-				cnvd_sheet.append(cnvd_list)
-				excel.save(savepath)
-			elif code.lower().startswith('cnnvd'):
-				cnnvd_list=Getcnnvd(code)
-				cnnvd_sheet.append(cnnvd_list)
-				excel.save(savepath)
-			else:
-				print('Error:%s'%code)
-		except Exception as e:
-			print(e)
 
-if __name__=='__main__':
-	if os.path.isfile(sys.argv[1]):
-		lock = multiprocessing.Lock()
-		savepath=os.path.splitext(sys.argv[1])[0]+'.xlsx'
-		excel=openpyxl.Workbook()
-		cve_sheet,cve_sheet.title,cnvd_sheet,cnnvd_sheet=excel.active,'cve_CH_EN_LV',excel.create_sheet('cnvd'),excel.create_sheet('cnnvd')
-		cve_sheet.append(['cve','vul_name','vul_level','ch_description','en_description','GoogleTranslate','lv_vul_name','lv_affect','lv_description','lv_solution'])
-		cnvd_sheet.append(['cve编号','cnvd编号','cnvd名称','cnvd等级','cnvd描述','cnvd解决方案'])
-		cnnvd_sheet.append(['cve编号','cnnvd编号','cnnvd名称','cnnvd等级','cnnvd描述','cnnvd解决方案'])
-		proc_record=[]
-		for i in open(sys.argv[1],'r',encoding='utf8'):
-			p=multiprocessing.Process(target=runcves, args=(lock,i,cve_sheet,cnvd_sheet,cnnvd_sheet,excel,savepath))
-			p.start()
-			proc_record.append(p)
-		for p in proc_record:
-			p.join()
-		
-		print('\n完成！保存路径：%s'%savepath)
-	else:
-		try:
-			for i in Getdata2(sys.argv[1]):
-				print(i)
-			print(Getdata1(sys.argv[1]))
-			lv=Getdata3(cve)
-			print('绿盟名称：'+lv[0]+'\n绿盟影响版本：'+lv[1]+'\n绿盟描述：'+lv[2]+'\n绿盟解决方案：'+lv[3])
-		except Exception as e:
-			print('InputError:%s'%e)
-'''
 if __name__=='__main__':
 	if os.path.isfile(sys.argv[1]):
 		savepath=os.path.splitext(sys.argv[1])[0]+'.xlsx'
@@ -318,4 +266,4 @@ if __name__=='__main__':
 		except Exception as e:
 			print('InputError:%s'%e)
 #pa取cve信息.py CVE-2013-2067
-#pa取cve信息.py E:\ZP\Desktop\漏扫相关\脚本录入修改\cve.txt
+#pa取cve信息.py E:\ZP\Desktop\cve.txt
