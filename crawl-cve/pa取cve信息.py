@@ -1,4 +1,4 @@
-import requests,openpyxl,sys,os,execjs,re,multiprocessing
+import requests,openpyxl,sys,os,execjs,re
 from bs4 import BeautifulSoup
 from selenium import webdriver
 
@@ -125,7 +125,6 @@ def Getdata2(cve):
 	finally:return [vul_name,vul_level,ch_description]
 
 def Getdata3(cve):
-	#绿盟
 	lv_vul_name,lv_affect,lv_description,lv_solution='0','0','0','0'
 	url='http://www.nsfocus.net/index.php?os=&type_id=&keyword=%s&act=sec_bug&submit=+'%cve
 	try:
@@ -158,8 +157,7 @@ def Getdata3(cve):
 						if k.startswith('<*来源'):break
 						if k:lv_description+=k.strip('\r\n')
 					startnum,endnum=datalist.index('建议：')+1,datalist.index('浏览次数：')
-					lv_solution=''.join(datalist[startnum:endnum])
-					#print('绿盟名称：'+lv_vul_name+'\n绿盟影响版本：'+lv_affect+'\n绿盟描述：'+lv_description+'\n绿盟解决方案：'+lv_solution)
+					lv_solution=''.join(datalist[startnum:endnum])					
 				else:continue
 			except:continue
 	except Exception as e:
