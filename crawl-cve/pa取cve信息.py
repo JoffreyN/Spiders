@@ -70,7 +70,6 @@ def GetURL(url,header={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64; r
 			cnvd_cookie=GetCookie(url)
 			header['cookie']=cnvd_cookie
 			r=requests.get(url,headers=header)
-		print(header['cookie'])	
 		soup=BeautifulSoup(r.text,'html.parser')
 		return soup
 	except Exception as e:
