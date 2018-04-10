@@ -217,6 +217,7 @@ def Getcnnvd(cnnvd):
 		if '高' in s:return 'H'
 		elif '中' in s:return 'M'
 		elif '低' in s:return 'L'
+		elif s:return s
 		else:return '获取失败，请手动查询。'
 
 	url='http://www.cnnvd.org.cn/web/xxk/ldxqById.tag?CNNVD=%s'%cnnvd
