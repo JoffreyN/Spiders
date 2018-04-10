@@ -228,6 +228,8 @@ def Getcnnvd(cnnvd):
 		if not cnnvd_name.endswith(')'):cnnvd_name=cnnvd_name+'(%s)'%cnnvd_cve
 		cnnvd_leve=getleve(list(soup_cnnvd.find(text='危害等级：').parent.parent.a.strings)[0].strip(' \r\n\t'))
 		cnnvd_description=soup_cnnvd.find('div',{'class':'d_ldjj'}).p.next_sibling.string.strip(' \r\n\t')
+		if not cnnvd_description:
+			cnnvd_description=soup_cnnvd.find('div',{'class':'d_ldjj'}).p.string.strip(' \r\n\t')
 		cnnvd_solution=getstring(soup_cnnvd.find('div',{'class':'d_ldjj m_t_20'}).children)
 	except Exception as e:
 		print('cnnvd_ERROR:%s;Reason:%s'%(cnnvd,e))
