@@ -1,6 +1,7 @@
-import requests,openpyxl,sys,os,execjs,re
+import requests,openpyxl,sys,os,execjs,re,multiprocessing
 from bs4 import BeautifulSoup
 from selenium import webdriver
+from lxml import etree
 
 class Py4Js():     
 	def __init__(self):  
@@ -70,6 +71,7 @@ def GetURL(url,header={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64; r
 			cnvd_cookie=GetCookie(url)
 			header['cookie']=cnvd_cookie
 			r=requests.get(url,headers=header)
+		#print(header['cookie'])	
 		soup=BeautifulSoup(r.text,'html.parser')
 		return soup
 	except Exception as e:
@@ -99,7 +101,7 @@ def Getdata1(cve):
 def Getdata2(cve):
 	#cve中文官网
 	url='http://cve.scap.org.cn/%s.html'%cve
-	vul_name,vul_level,ch_description='0','0','0'
+	vul_name,vul_level,ch_description,published_time,updated_time,cvss='0','0','0',0,0,0
 	def VulName(s):
 		l=s.split(' ',1)
 		return '%s(%s)'%(l[1],l[0])
@@ -116,14 +118,18 @@ def Getdata2(cve):
 		vul_name=VulName(soup.find('meta',{'name':'description'})['content'])
 		vul_level=VulLevel(soup.find('td',{'width':'67%'}).string)
 		#ch_description=list(soup.find_all('td',{'colspan':'2'})[3].strings)[1].strip('\xa0')
+		published_time=soup.find('td',{'width':'36%'}).string.split(':')[1].split(' ')[0]
+		updated_time=soup.find('td',{'width':'36%'}).parent.next_sibling.next_sibling.td.string.split(':')[1].split(' ')[0]
+		cvss=soup.find(text='CVSS分值:').parent.next_sibling.next_sibling.string.strip(' \r\n\t')
 		if list(soup.find_all('span',{'class':'tip_text'})[1].parent.next_sibling.strings)[1].strip('\xa0'):
 			ch_description=list(soup.find_all('span',{'class':'tip_text'})[1].parent.next_sibling.strings)[1].strip('\xa0')
-		else:ch_description=''
+		else:ch_description=''		
 	except Exception as e:
 		print('CH_cve_ERROR:%s;Reason:%s'%(cve,e))
-	finally:return [vul_name,vul_level,ch_description]
+	finally:return [vul_name,vul_level,ch_description,published_time,updated_time,cvss]
 
 def Getdata3(cve):
+	#绿盟
 	lv_vul_name,lv_affect,lv_description,lv_solution='0','0','0','0'
 	url='http://www.nsfocus.net/index.php?os=&type_id=&keyword=%s&act=sec_bug&submit=+'%cve
 	try:
@@ -147,7 +153,7 @@ def Getdata3(cve):
 					lv_vul_name=cve_soup.find('div',{'align':'center'}).b.string
 					#print(href)
 					if not lv_vul_name.endswith(')'):lv_vul_name=lv_vul_name+'(%s)'%cve
-					lv_affect=';'.join(map(lambda s:s.strip('\n'),list(cve_soup.find('blockquote').strings)))
+					lv_affect=';\n'.join(map(lambda s:s.strip('\n'),list(cve_soup.find('blockquote').strings))).strip('\n')
 					data=list(list(cve_soup.find('div',{'align':'center'}).next_siblings)[-1].strings)
 					startdiscrip=data.index('\n',2)+1
 					datalist=list(map(lambda s:s.strip('\n'),data[startdiscrip:]))
@@ -156,13 +162,47 @@ def Getdata3(cve):
 						if k.startswith('<*来源'):break
 						if k:lv_description+=k.strip('\r\n')
 					startnum,endnum=datalist.index('建议：')+1,datalist.index('浏览次数：')
-					lv_solution=''.join(datalist[startnum:endnum])					
+					lv_solution=''.join(datalist[startnum:endnum])
+					#print('绿盟名称：'+lv_vul_name+'\n绿盟影响版本：'+lv_affect+'\n绿盟描述：'+lv_description+'\n绿盟解决方案：'+lv_solution)
 				else:continue
 			except:continue
 	except Exception as e:
 		print('lv_Error:%s;Reason:%s'%(cve,e))
 	finally:return [lv_vul_name,lv_affect,lv_description,lv_solution]
 #Getdata3('CVE-2012-4558')
+
+def Getcnvdid(cve):
+	head={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:59.0) Gecko/20100101 Firefox/59.0','Content-Type':'application/x-www-form-urlencoded'}
+	global cnvd_cookie
+	head['cookie']=cnvd_cookie
+	key='keyword=&condition=1&keywordFlag=0&cnvdId=&cnvdIdFlag=0&baseinfoBeanbeginTime=&baseinfoBeanendTime=&baseinfoBeanFlag=0&refenceInfo=%s&referenceScope=1&manufacturerId=-1&categoryId=-1&editionId=-1&causeIdStr=&threadIdStr=&serverityIdStr=&positionIdStr='%cve
+	r=requests.post('http://www.cnvd.org.cn/flaw/list.htm?flag=true',headers=head,data=key)
+	if r.status_code!=200:
+		return '连接错误'
+	soup_cnvd_id=BeautifulSoup(r.text,'html.parser')
+	try:
+		if '共\xa01\xa0条' ==soup_cnvd_id.find('div',{'class':'pages clearfix'}).span.string.strip(' \r\n\t'):
+			cnvd_id=soup_cnvd_id.find('tr',{'class':'current'}).td.a['href'].split('/')[-1]
+		else:			
+			cnvd_id='NOCNVD'
+	except:
+		cnvd_id='NOCNVD'
+	finally:
+		return cnvd_id
+
+def Getcnnvdid(cve):
+		head={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:59.0) Gecko/20100101 Firefox/59.0','Content-Type':'application/x-www-form-urlencoded'}
+		key='CSRFToken=&cvHazardRating=&cvVultype=&qstartdateXq=&cvUsedStyle=&cvCnnvdUpdatedateXq=&cpvendor=&relLdKey=&hotLd=&isArea=&qcvCname=&qcvCnnvdid=%s&qstartdate=&qenddate='%cve
+		r=requests.post('http://www.cnnvd.org.cn/web/vulnerability/queryLds.tag',headers=head,data=key)
+		if r.status_code!=200:
+			return '连接错误'
+		selector=etree.HTML(r.text)
+		try:
+			cnnvd_id=selector.xpath('/html/body/div[4]/div/div[1]/div/div[2]/ul/li/div[1]/p/a[1]/text()')[0]
+		except:
+			cnnvd_id='NOCNNVD'
+		finally:
+			return cnnvd_id
 
 def Getcnvd(cnvd):	
 	def getlevel(color):
@@ -183,6 +223,7 @@ def Getcnvd(cnvd):
 			return descrip
 	
 	cnvd_cve,cnvd_name,cnvd_leve,cnvd_affect,cnvd_description,cnvd_solution='0','0','0','0','0','0'
+	if cnvd=='NOCNNVD':return [cnvd_cve,cnvd,cnvd_name,cnvd_leve,cnvd_affect,cnvd_description,cnvd_solution]
 	url='http://www.cnvd.org.cn/flaw/show/%s'%cnvd
 	header={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:59.0) Gecko/20100101 Firefox/59.0'}
 	global cnvd_cookie
@@ -195,7 +236,7 @@ def Getcnvd(cnvd):
 		cnvd_leve=getlevel(soup_cnvd.find('td',{'class':'denle'}).span['class'][0])
 		cnvd_affect='\n'.join(map(lambda s:s.strip(' \r\n\t'),list(list(soup_cnvd.find(text='影响产品').parent.next_siblings)[1].strings))).strip('\n')
 		cnvd_description=getdescrip(list(soup_cnvd.find(text='漏洞描述').parent.next_sibling.next_sibling.strings))
-		cnvd_solution='\n'.join(map(lambda s:s.strip(' \r\n\t'),list(soup_cnvd.find(text='漏洞解决方案').parent.next_sibling.next_sibling.strings))).strip('\n')
+		cnvd_solution='\n'.join(map(lambda s:s.strip(' \r\n\t'),list(soup_cnvd.find(text='漏洞解决方案').parent.next_sibling.next_sibling.strings))).strip('\n')		
 	except Exception as e:
 		print('cnvd_ERROR:%s;Reason:%s'%(cnvd,e))
 	finally:return [cnvd_cve,cnvd,cnvd_name,cnvd_leve,cnvd_affect,cnvd_description,cnvd_solution]
@@ -204,6 +245,7 @@ def Getcnvd(cnvd):
 
 def Getcnnvd(cnnvd):
 	cnnvd_cve,cnnvd_name,cnnvd_leve,cnnvd_description,cnnvd_solution='0','0','0','0','0'
+	if cnnvd=='NOCNNVD':return [cnnvd_cve,cnnvd,cnnvd_name,cnnvd_leve,cnnvd_description,cnnvd_solution]
 	def getstring(siblings):
 		string=''
 		for i in siblings:
@@ -231,9 +273,12 @@ def Getcnnvd(cnnvd):
 		if not cnnvd_description:
 			cnnvd_description=soup_cnnvd.find('div',{'class':'d_ldjj'}).p.string.strip(' \r\n\t')
 		cnnvd_solution=getstring(soup_cnnvd.find('div',{'class':'d_ldjj m_t_20'}).children)
+		#published_time=soup_cnnvd.find(text='发布时间：').parent.parent.a.string.strip(' \r\n\t')
+		#updated_time=soup_cnnvd.find(text='更新时间：').parent.parent.a.string.strip(' \r\n\t')
 	except Exception as e:
 		print('cnnvd_ERROR:%s;Reason:%s'%(cnnvd,e))
 	finally:return [cnnvd_cve,cnnvd,cnnvd_name,cnnvd_leve,cnnvd_description,cnnvd_solution]
+#print(Getcnnvd('CNNVD-200408-092'))
 
 if __name__=='__main__':
 	if os.path.isfile(sys.argv[1]):
@@ -241,8 +286,8 @@ if __name__=='__main__':
 		savepath=os.path.splitext(sys.argv[1])[0]+'.xlsx'
 		excel=openpyxl.Workbook()
 		cve_sheet,cve_sheet.title,cnvd_sheet,cnnvd_sheet=excel.active,'cve_CH_EN_LV',excel.create_sheet('cnvd'),excel.create_sheet('cnnvd')
-		cve_sheet.append(['cve','vul_name','vul_level','ch_description','en_description','GoogleTranslate','lv_vul_name','lv_affect','lv_description','lv_solution'])
-		cnvd_sheet.append(['cve编号','cnvd编号','cnvd名称','cnvd等级','cnvd描述','cnvd解决方案'])
+		cve_sheet.append(['cve','vul_name','vul_level','ch_description','published_time','updated_time','cvss','en_description','GoogleTranslate','lv_vul_name','lv_affect','lv_description','lv_solution'])
+		cnvd_sheet.append(['cve编号','cnvd编号','cnvd名称','cnvd等级','cnvd影响范围','cnvd描述','cnvd解决方案'])
 		cnnvd_sheet.append(['cve编号','cnnvd编号','cnnvd名称','cnnvd等级','cnnvd描述','cnnvd解决方案'])
 		for i in open(sys.argv[1],'r',encoding='utf8'):
 			code=i.strip('\n')
@@ -253,12 +298,20 @@ if __name__=='__main__':
 					en_description=Getdata1(code)
 					cve_lists=sum([[code],Getdata2(code),[en_description,translate(en_description)],Getdata3(code)],[])
 					cve_sheet.append(cve_lists)
+
+					cnnvd_list=Getcnnvd(Getcnnvdid(code))
+					cnnvd_sheet.append(cnnvd_list)	
+
+					cnvd_list=Getcnvd(Getcnvdid(code))
+					cnvd_sheet.append(cnvd_list)			
+				'''
 				elif code.lower().startswith('cnvd'):
 					cnvd_list=Getcnvd(code)
 					cnvd_sheet.append(cnvd_list)
 				elif code.lower().startswith('cnnvd'):
 					cnnvd_list=Getcnnvd(code)
 					cnnvd_sheet.append(cnnvd_list)
+				'''
 				else:
 					print('Error:%s'%code)
 					continue
@@ -274,3 +327,5 @@ if __name__=='__main__':
 			print('绿盟名称：'+lv[0]+'\n绿盟影响版本：'+lv[1]+'\n绿盟描述：'+lv[2]+'\n绿盟解决方案：'+lv[3])
 		except Exception as e:
 			print('InputError:%s'%e)
+#pa取cve信息.py CVE-2013-2067
+#pa取cve信息.py E:\ZP\Desktop\cve.txt
